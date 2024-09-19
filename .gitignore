@@ -1,0 +1,12 @@
+# Ignore direnv environment
+.direnv
+
+# Ignore IntelliJ or other temporary files
+.mtj.tmp/
+
+# Ignore class, jar, war, and other build artifacts
+*.class
+*.jar
+*.war
+*.ear
+*.nar
