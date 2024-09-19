@@ -24,7 +24,8 @@
         # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            pkgs.jdk8 pkgs.jdt-language-server
+            pkgs.jdk pkgs.jdt-language-server
+            pkgs.maven
           ];
         };
 

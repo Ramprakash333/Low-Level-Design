@@ -12,7 +12,7 @@ public class Cache<KEY, VALUE> {
     private final int maximumSize;
     private final FetchAlgorithm fetchAlgorithm;
     private final Duration expiryTime;
-    private final Map<KEY, CompletionStage<Record<KEY, VALUE>>> cache;
+    private final Map<KEY, CompletionStage<models.Record<KEY, VALUE>>> cache;
     private final ConcurrentSkipListMap<AccessDetails, List<KEY>> priorityQueue;
     private final ConcurrentSkipListMap<Long, List<KEY>> expiryQueue;
     private final DataSource<KEY, VALUE> dataSource;
@@ -68,7 +68,7 @@ public class Cache<KEY, VALUE> {
     }
 
     private CompletionStage<VALUE> getFromCache(KEY key) {
-        final CompletionStage<Record<KEY, VALUE>> result;
+        final CompletionStage<models.Record<KEY, VALUE>> result;
         if (!cache.containsKey(key)) {
             result = addToCache(key, loadFromDB(dataSource, key));
         } else {
@@ -103,7 +103,7 @@ public class Cache<KEY, VALUE> {
                         if (hasExpired(oldRecord)) {
                             eventQueue.add(new Eviction<>(oldRecord, Eviction.Type.EXPIRY, timer.getCurrentTime()));
                         } else {
-                            eventQueue.add(new Update<>(new Record<>(key, value, timer.getCurrentTime()), oldRecord, timer.getCurrentTime()));
+                            eventQueue.add(new Update<>(new models.Record<>(key, value, timer.getCurrentTime()), oldRecord, timer.getCurrentTime()));
                         }
                     });
         }
@@ -113,10 +113,10 @@ public class Cache<KEY, VALUE> {
         });
     }
 
-    private CompletionStage<Record<KEY, VALUE>> addToCache(final KEY key, final CompletionStage<VALUE> valueFuture) {
+    private CompletionStage<models.Record<KEY, VALUE>> addToCache(final KEY key, final CompletionStage<VALUE> valueFuture) {
         manageEntries();
         final var recordFuture = valueFuture.thenApply(value -> {
-            final Record<KEY, VALUE> record = new Record<>(key, value, timer.getCurrentTime());
+            final models.Record<KEY, VALUE> record = new models.Record<>(key, value, timer.getCurrentTime());
             expiryQueue.putIfAbsent(record.getInsertionTime(), new CopyOnWriteArrayList<>());
             expiryQueue.get(record.getInsertionTime()).add(key);
             priorityQueue.putIfAbsent(record.getAccessDetails(), new CopyOnWriteArrayList<>());
@@ -132,7 +132,7 @@ public class Cache<KEY, VALUE> {
             while (!expiryQueue.isEmpty() && hasExpired(expiryQueue.firstKey())) {
                 final List<KEY> keys = expiryQueue.pollFirstEntry().getValue();
                 for (final KEY key : keys) {
-                    final Record<KEY, VALUE> expiredRecord = cache.remove(key).toCompletableFuture().join();
+                    final models.Record<KEY, VALUE> expiredRecord = cache.remove(key).toCompletableFuture().join();
                     priorityQueue.remove(expiredRecord.getAccessDetails());
                     eventQueue.add(new Eviction<>(expiredRecord, Eviction.Type.EXPIRY, timer.getCurrentTime()));
                 }
@@ -144,19 +144,19 @@ public class Cache<KEY, VALUE> {
                 keys = priorityQueue.pollFirstEntry().getValue();
             }
             for (final KEY key : keys) {
-                final Record<KEY, VALUE> lowestPriorityRecord = cache.remove(key).toCompletableFuture().join();
+                final models.Record<KEY, VALUE> lowestPriorityRecord = cache.remove(key).toCompletableFuture().join();
                 expiryQueue.get(lowestPriorityRecord.getInsertionTime()).remove(lowestPriorityRecord.getKey());
                 eventQueue.add(new Eviction<>(lowestPriorityRecord, Eviction.Type.REPLACEMENT, timer.getCurrentTime()));
             }
         }
     }
 
-    private CompletionStage<Void> persistRecord(final Record<KEY, VALUE> record) {
+    private CompletionStage<Void> persistRecord(final models.Record<KEY, VALUE> record) {
         return dataSource.persist(record.getKey(), record.getValue(), record.getInsertionTime())
                 .thenAccept(__ -> eventQueue.add(new Write<>(record, timer.getCurrentTime())));
     }
 
-    private boolean hasExpired(final Record<KEY, VALUE> record) {
+    private boolean hasExpired(final models.Record<KEY, VALUE> record) {
         return hasExpired(record.getInsertionTime());
     }
 
@@ -171,7 +171,7 @@ public class Cache<KEY, VALUE> {
     private CompletionStage<VALUE> loadFromDB(final DataSource<KEY, VALUE> dataSource, KEY key) {
         return dataSource.load(key).whenComplete((value, throwable) -> {
             if (throwable == null) {
-                eventQueue.add(new Load<>(new Record<>(key, value, timer.getCurrentTime()), timer.getCurrentTime()));
+                eventQueue.add(new Load<>(new models.Record<>(key, value, timer.getCurrentTime()), timer.getCurrentTime()));
             }
         });
     }
