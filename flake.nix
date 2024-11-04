@@ -20,7 +20,45 @@
         # Per-system attributes can be defined here. The self' and inputs'
         # module parameters provide easy access to attributes of the same
         # system.
+        packages = {
+          default = pkgs.stdenv.mkDerivation {
+            pname = "maven-project";
+            version = "1.0";
 
+            src = ./. ;  # Point to your project source directory
+
+            nativeBuildInputs = [
+              pkgs.maven
+            ];
+
+            buildInputs = [
+              pkgs.jdk
+            ];
+
+            installPhase = ''
+              mkdir -p $out/bin
+              cp -r * $out
+
+              # Create a wrapper script to run Maven with arguments
+              cat > $out/bin/run-maven <<EOF
+              #!/bin/sh
+              exec ${pkgs.maven}/bin/mvn "\$@"
+              EOF
+              chmod +x $out/bin/run-maven
+            '';
+
+            meta = {
+              description = "A Maven project environment";
+            };
+          };
+        };
+         apps = {
+          default = {
+            type = "app";
+            program = "${self'.packages.default}/bin/run-maven";
+            # Pass arguments to `mvn`
+          };
+        };
         # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
         devShells.default = pkgs.mkShell {
           buildInputs = [

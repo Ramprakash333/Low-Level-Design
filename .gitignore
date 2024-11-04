@@ -11,3 +11,6 @@
 *.ear
 *.nar
 **/target/
+.idea/*
+*/result/
+result
